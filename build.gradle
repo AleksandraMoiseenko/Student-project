@@ -1,0 +1,113 @@
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+        google()
+    }
+    ext['jooq.version'] = '3.13.1'
+    dependencies {
+        classpath("org.springframework.boot:spring-boot-gradle-plugin:1.5.9.RELEASE")
+        classpath('org.liquibase:liquibase-gradle-plugin:2.0.4')
+        classpath('org.postgresql:postgresql:42.1.4')
+        classpath group: 'org.jooq', name: 'jooq-meta', version: '3.13.1'
+        classpath group: 'org.jooq', name: 'jooq-codegen', version: '3.13.1'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '2.6.3'
+    id 'io.spring.dependency-management' version '1.0.9.RELEASE'
+    id "nu.studer.jooq" version "4.2"
+    id 'org.liquibase.gradle' version '2.0.4'
+}
+
+group 'student-project'
+version '1.0.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation('org.springframework.boot:spring-boot-starter-web:2.6.5')
+    compileOnly 'org.projectlombok:lombok:1.18.22'
+    annotationProcessor 'org.projectlombok:lombok:1.18.22'
+    implementation 'org.springframework.boot:spring-boot-starter-jooq:2.6.5'
+    implementation group: 'org.jooq', name: 'jooq-meta', version: '3.13.1'
+    implementation group: 'org.jooq', name: 'jooq-codegen', version: '3.13.1'
+    runtimeOnly 'org.postgresql:postgresql:42.1.4'
+    jooqRuntime 'org.postgresql:postgresql:42.1.4'
+    liquibaseRuntime 'org.postgresql:postgresql:42.1.4'
+    liquibaseRuntime 'org.liquibase:liquibase-core:4.2.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    implementation 'com.google.guava:guava:30.1-jre'
+}
+apply plugin: "org.liquibase.gradle"
+
+test {
+    useJUnitPlatform()
+}
+
+jooq {
+    version = dependencyManagement.importedProperties["jooq.version"]
+    generateSchemaSourceOnCompilation = true
+    myJooq(sourceSets.main) {
+        jdbc {
+            driver = 'org.postgresql.Driver'
+            url = 'jdbc:postgresql://localhost:5432/db'
+            user = 'postgres'
+            password = 'root'
+        }
+        generator {
+            name = 'org.jooq.codegen.DefaultGenerator'
+            strategy {
+                name = 'org.jooq.codegen.DefaultGeneratorStrategy'
+            }
+            database {
+                name = 'org.jooq.meta.postgres.PostgresDatabase'
+                inputSchema = 'student_jooq'
+            }
+            generate {
+                relations = true
+                deprecated = false
+                records = true
+                immutablePojos = true
+                fluentSetters = true
+            }
+            target {
+                packageName = 'ru.stm.student.example.entity'
+//                directory = 'src/main/java'
+            }
+        }
+    }
+}
+tasks.generateMyJooqJooqSchemaSource.with {
+    def out = new ByteArrayOutputStream()
+    javaExecSpec = { JavaExecSpec s ->
+        s.standardOutput = out
+        s.errorOutput = out
+        s.ignoreExitValue = true
+        s.jvmArgs '-Xmx512M'
+    }
+    execResultHandler = { ExecResult r ->
+        if (r.exitValue != 0) {
+            throw new RuntimeException('jOOQ source code generation failed: ' + out.toString())
+        }
+    }
+}
+def changeLog = "/src/main/resources/db/changelog/master.xml"
+
+liquibase {
+    println changeLog
+    activities {
+        main {
+            changeLogFile changeLog
+            url 'jdbc:postgresql://localhost:5432/db?currentSchema=student_jooq'
+            username 'postgres'
+            password 'root'
+            driver("org.postgresql.Driver")
+        }
+    }
+}

@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5432/db?currentSchema=student_jooq
+    username: postgres
+    password: root
+    continue-on-error: true
+
+  liquibase:
+    change-log: classpath:/db/changelog/master.xml
